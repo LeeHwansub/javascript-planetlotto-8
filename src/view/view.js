@@ -87,4 +87,4 @@ const OutputView = {
   },
 };
 
-export { InputView, OutputView };
+export default { InputView, OutputView };
