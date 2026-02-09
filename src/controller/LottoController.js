@@ -1,15 +1,16 @@
-import InputView from "../view/view.js";
-import OutputView from "../view/view.js";
+import view from "../view/view.js";
 import InputValidator from "../utils/InputValidator.js";
 import PrizeCalculator from "../utils/PrizeCalculator.js";
 import LottoConstants from "../constants/LottoConstants.js";
-import LottoGenerator from "../utils/Lottogenerator.js";
-import view from "../view/view.js";
+import LottoGenerator from "../utils/LottoGenerator.js";
+import PrizeConstants from "../constants/PrizeConstants.js";
+
+const { InputView, OutputView } = view;
 
 class LottoController {
   async run() {
     const lottos = await this.purchaseLottos();
-    OutputView.OutputView.printPurchasedLottos(lottos);
+    this.printLottos(lottos);
 
     const winningNumbers = await this.getWinningNumbers();
     const bonusNumber = await this.getBonusNumber(winningNumbers);
@@ -17,17 +18,21 @@ class LottoController {
     this.calculateResults(lottos, winningNumbers, bonusNumber);
   }
 
+  printLottos(lottos) {
+    const lottoNumbers = lottos.map(lotto => lotto.getNumbers());
+    OutputView.printPurchasedLottos(lottoNumbers);
+  }
+
   async purchaseLottos() {
     while (true) {
       try {
-        const input = await InputView.InputView.askAmount();
-        InputValidator.validatePurchaseAmount(input);
+        const amount = await InputView.askAmount();
+        InputValidator.validatePurchaseAmount(amount);
 
-        const purchaseAmount = Number(input);
-        const lottoCount = this.calculateLottoCount(purchaseAmount);
+        const lottoCount = this.calculateLottoCount(amount);
         return LottoGenerator.generateLottos(lottoCount);
       } catch (error) {
-        view.OutputView.printErrorMessage(error.message);
+        OutputView.printErrorMessage(error.message);
       }
     }
   }
@@ -39,10 +44,14 @@ class LottoController {
   async getWinningNumbers() {
     while (true) {
       try {
-        const input = await InputView.readWinningNumbers();
-        return InputValidator.validateWinningNumbers(input);
+        const numbers = await InputView.askWinningLotto();
+        // InputValidator의 개별 검증 메서드 사용
+        InputValidator.validateNumberCount(numbers);
+        InputValidator.validateNumberRange(numbers);
+        InputValidator.validateUniqueNumbers(numbers);
+        return numbers;
       } catch (error) {
-        view.OutputView.printErrorMessage(message);
+        OutputView.printErrorMessage(error.message);
       }
     }
   }
@@ -50,10 +59,12 @@ class LottoController {
   async getBonusNumber(winningNumbers) {
     while (true) {
       try {
-        const input = await InputView.readBonusNumber();
-        return InputValidator.validateBonusNumber(input, winningNumbers);
+        const bonusNumber = await InputView.askBonusNumber();
+        InputValidator.validateBonusRange(bonusNumber);
+        InputValidator.validateBonusDuplicate(bonusNumber, winningNumbers);
+        return bonusNumber;
       } catch (error) {
-        view.OutputView.printErrorMessage(message);
+        OutputView.printErrorMessage(error.message);
       }
     }
   }
@@ -68,17 +79,19 @@ class LottoController {
   }
 
   printResults(statistics, lottoCount) {
-    OutputView.printStatisticsHeader();
-    OutputView.printPrizeStatistics(statistics);
+    // Map 형식으로 변환 (0~5 등급)
+    const countsByRank = new Map();
+    const totalWinning = (statistics[1] || 0) + (statistics[2] || 0) + (statistics[3] || 0) + (statistics[4] || 0) + (statistics[5] || 0);
+    const noMatchCount = lottoCount - totalWinning;
 
-    const totalPrize = PrizeCalculator.calculateTotalPrizeAmount(statistics);
-    const purchaseAmount = lottoCount * LottoConstants.LOTTO_PRICE;
-    const profitRate = PrizeCalculator.calculateProfitRate(
-      totalPrize,
-      purchaseAmount
-    );
+    countsByRank.set(0, noMatchCount);
+    countsByRank.set(1, statistics[1] || 0);
+    countsByRank.set(2, statistics[2] || 0);
+    countsByRank.set(3, statistics[3] || 0);
+    countsByRank.set(4, statistics[4] || 0);
+    countsByRank.set(5, statistics[5] || 0);
 
-    OutputView.printResult(profitRate);
+    OutputView.printResult(countsByRank);
   }
 }
 
